@@ -41,16 +41,27 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """Handle HEAD requests for connection testing"""
+        logger.info(f"HEAD request to {self.path}")
+        
+        # Send CORS headers for all HEAD requests
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         
-        if self.path == '/health':
+        if self.path == '/':
+            self.send_header('Location', '/stream.mjpg')
+            self.send_header('Content-Type', 'text/html')
+        elif self.path == '/health':
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', '32')
         elif self.path == '/stream.mjpg':
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
+            self.send_header('Age', '0')
+            self.send_header('Cache-Control', 'no-cache, private')
+            self.send_header('Pragma', 'no-cache')
         else:
+            self.send_response(404)
             self.send_header('Content-Type', 'text/html')
         
         self.end_headers()
