@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,9 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
   const [streamError, setStreamError] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     console.log('CameraFeed: Pi IP changed:', piIp, 'Connected:', isConnected);
@@ -25,10 +28,15 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
       setStreamUrl(url);
       setStreamError(false);
       setIsLoading(true);
+      setConnectionAttempts(0);
     } else {
       console.log('CameraFeed: Clearing stream URL');
       setStreamUrl(null);
       setIsLoading(false);
+      setConnectionAttempts(0);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
     }
   }, [piIp, isConnected]);
 
@@ -47,41 +55,68 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
     console.error('CameraFeed: Stream error:', error);
     setStreamError(true);
     setIsLoading(false);
+    
+    // Auto-retry logic with exponential backoff
+    if (connectionAttempts < 3 && streamUrl) {
+      const delay = Math.pow(2, connectionAttempts) * 2000; // 2s, 4s, 8s
+      console.log(`CameraFeed: Retrying in ${delay}ms (attempt ${connectionAttempts + 1})`);
+      
+      retryTimeoutRef.current = setTimeout(() => {
+        setConnectionAttempts(prev => prev + 1);
+        setStreamError(false);
+        setIsLoading(true);
+        
+        if (imgRef.current && streamUrl) {
+          imgRef.current.src = streamUrl + '?t=' + Date.now();
+        }
+      }, delay);
+    }
   };
 
   const handleImageLoad = () => {
     console.log('CameraFeed: Stream loaded successfully');
     setStreamError(false);
     setIsLoading(false);
+    setConnectionAttempts(0);
   };
 
   const testStreamConnection = async () => {
-    if (!streamUrl) return;
+    if (!streamUrl || !piIp) return;
     
     try {
       console.log('CameraFeed: Testing stream connection to:', streamUrl);
       setIsLoading(true);
+      setStreamError(false);
+      setConnectionAttempts(0);
       
-      // Test if the stream endpoint is reachable
-      const response = await fetch(streamUrl.replace('/stream.mjpg', ''), {
+      // Test the main server endpoint first
+      const serverTest = await fetch(`http://${piIp}:8000`, {
         method: 'HEAD',
         mode: 'no-cors',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(10000)
       });
       
-      console.log('CameraFeed: Stream test response received');
+      console.log('CameraFeed: Server test response received');
       
-      // Force reload the image
+      // Force reload the image with cache-busting
       if (imgRef.current) {
         imgRef.current.src = streamUrl + '?t=' + Date.now();
       }
     } catch (error) {
       console.error('CameraFeed: Stream test failed:', error);
       setStreamError(true);
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Cleanup retry timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -91,7 +126,10 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
             <Camera className="h-5 w-5 text-teal-400" />
             <span>Live Camera Feed</span>
             {isLoading && (
-              <div className="text-sm text-yellow-400">Loading...</div>
+              <div className="text-sm text-yellow-400">Connecting...</div>
+            )}
+            {connectionAttempts > 0 && !isLoading && (
+              <div className="text-sm text-orange-400">Retry {connectionAttempts}/3</div>
             )}
           </div>
           <div className="flex space-x-2">
@@ -106,10 +144,10 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
             <Button 
               size="sm" 
               variant="outline" 
-              disabled={!isConnected || !streamUrl}
+              disabled={!isConnected || !streamUrl || isLoading}
               onClick={testStreamConnection}
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
             <Button size="sm" variant="outline" disabled={!isConnected || !streamUrl}>
               <Maximize2 className="h-4 w-4" />
@@ -128,7 +166,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
                 className="w-full h-full object-cover"
                 onError={handleImageError}
                 onLoad={handleImageLoad}
-                crossOrigin="anonymous"
+                style={{ display: streamError ? 'none' : 'block' }}
               />
               
               {/* Loading overlay */}
@@ -136,20 +174,22 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
                 <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
                   <div className="text-center text-white">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto mb-2"></div>
-                    <p className="text-sm">Connecting to camera...</p>
+                    <p className="text-sm">
+                      {connectionAttempts > 0 ? `Retrying connection... (${connectionAttempts}/3)` : 'Connecting to camera...'}
+                    </p>
                   </div>
                 </div>
               )}
 
               {/* Motion detection indicator */}
-              {lastMotion && (
+              {lastMotion && !streamError && (
                 <div className="absolute top-4 right-4 bg-red-500/90 px-3 py-1 rounded-full text-xs font-medium">
                   Motion Detected
                 </div>
               )}
               
               {/* Recording indicator */}
-              {isRecording && (
+              {isRecording && !streamError && (
                 <div className="absolute top-4 left-4 flex items-center space-x-2 bg-red-500/90 px-3 py-1 rounded-full text-xs font-medium">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                   <span>REC</span>
@@ -157,32 +197,45 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
               )}
               
               {/* Timestamp */}
-              <div className="absolute bottom-4 left-4 bg-black/70 px-2 py-1 rounded text-xs text-white">
-                {new Date().toLocaleString()}
-              </div>
+              {!streamError && (
+                <div className="absolute bottom-4 left-4 bg-black/70 px-2 py-1 rounded text-xs text-white">
+                  {new Date().toLocaleString()}
+                </div>
+              )}
             </>
-          ) : streamError ? (
+          ) : null}
+          
+          {/* Error State */}
+          {streamError && (
             <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
               <div className="text-center text-red-400">
                 <AlertCircle className="h-16 w-16 mx-auto mb-2" />
                 <p className="font-medium">Camera Stream Error</p>
                 <p className="text-sm text-slate-500 mt-1">
-                  Stream URL: {streamUrl}
+                  Cannot connect to: {streamUrl}
                 </p>
                 <p className="text-sm text-slate-500">
-                  Check Pi connection and camera setup
+                  Check Pi camera service and network
                 </p>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="mt-2"
-                  onClick={testStreamConnection}
-                >
-                  Retry Connection
-                </Button>
+                <div className="mt-3 space-y-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={testStreamConnection}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Testing...' : 'Test Connection'}
+                  </Button>
+                  <div className="text-xs text-slate-600">
+                    Attempts: {connectionAttempts}/3
+                  </div>
+                </div>
               </div>
             </div>
-          ) : !streamUrl ? (
+          )}
+          
+          {/* No Pi Connected */}
+          {!streamUrl && (
             <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
               <div className="text-center text-slate-400">
                 <Camera className="h-16 w-16 mx-auto mb-2 opacity-50" />
@@ -192,20 +245,13 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
                 </p>
               </div>
             </div>
-          ) : (
-            <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
-              <div className="text-center text-slate-500">
-                <Camera className="h-16 w-16 mx-auto mb-2 opacity-50" />
-                <p>Camera Offline</p>
-              </div>
-            </div>
           )}
         </div>
         
         {/* Debug information */}
         {streamUrl && (
           <div className="mt-2 text-xs text-slate-500">
-            Stream: {streamUrl}
+            Stream: {streamUrl} | Attempts: {connectionAttempts}
           </div>
         )}
         

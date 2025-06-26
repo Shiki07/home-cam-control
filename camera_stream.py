@@ -31,7 +31,18 @@ class StreamingOutput(io.BufferedIOBase):
             self.condition.notify_all()
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
     def do_GET(self):
+        # Add CORS headers to all responses
+        self.send_cors_headers()
+        
         if self.path == '/':
             self.send_response(301)
             self.send_header('Location', '/stream.mjpg')
@@ -56,9 +67,29 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                     self.wfile.write(b'\r\n')
             except Exception as e:
                 logger.warning('Removed streaming client %s: %s', self.client_address, str(e))
+        elif self.path == '/health':
+            # Simple health check endpoint
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"status": "ok", "camera": "active"}')
         else:
             self.send_error(404)
             self.end_headers()
+    
+    def send_cors_headers(self):
+        """Add CORS headers to allow cross-origin requests"""
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def log_message(self, format, *args):
+        """Override to reduce log spam"""
+        if not self.path.endswith('/stream.mjpg'):
+            logger.info("%s - - [%s] %s\n" %
+                       (self.address_string(),
+                        self.log_date_time_string(),
+                        format%args))
 
 class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
@@ -79,6 +110,7 @@ try:
     server = StreamingServer(address, StreamingHandler)
     
     logger.info("Stream available at http://your-pi-ip:8000/stream.mjpg")
+    logger.info("Health check at http://your-pi-ip:8000/health")
     logger.info("Press Ctrl+C to stop")
     
     server.serve_forever()
