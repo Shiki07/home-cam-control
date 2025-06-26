@@ -43,10 +43,10 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         """Handle HEAD requests for connection testing"""
         logger.info(f"HEAD request to {self.path}")
         
-        if self.path == '/':
-            self.send_response(301)
+        if self.path == '/' or self.path == '':
+            self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Location', '/stream.mjpg')
+            self.send_header('Content-Type', 'text/html')
             self.end_headers()
         elif self.path == '/health':
             self.send_response(200)
@@ -70,11 +70,12 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
         logger.info(f"GET request to {self.path}")
         
-        if self.path == '/':
-            self.send_response(301)
+        if self.path == '/' or self.path == '':
+            self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Location', '/stream.mjpg')
+            self.send_header('Content-Type', 'text/html')
             self.end_headers()
+            self.wfile.write(b'<html><body><h1>Pi Camera Server</h1><p>Stream: <a href="/stream.mjpg">/stream.mjpg</a></p></body></html>')
         elif self.path == '/stream.mjpg':
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
