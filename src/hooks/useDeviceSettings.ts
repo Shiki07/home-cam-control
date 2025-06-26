@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -44,11 +44,16 @@ export const useDeviceSettings = () => {
     if (!user) return;
 
     try {
+      // Input validation
+      if (!deviceName || deviceName.trim().length === 0) {
+        throw new Error('Device name is required');
+      }
+
       const { error } = await supabase
         .from('device_settings')
         .upsert({
           user_id: user.id,
-          device_name: deviceName,
+          device_name: deviceName.trim(),
           device_type: 'smart_device',
           is_active: isActive,
           settings: settings || {},

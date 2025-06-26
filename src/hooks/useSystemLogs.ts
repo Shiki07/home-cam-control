@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SystemLog {
@@ -45,13 +45,21 @@ export const useSystemLogs = () => {
     if (!user) return;
 
     try {
+      // Input validation
+      if (!logType || logType.trim().length === 0) {
+        throw new Error('Log type is required');
+      }
+      if (!title || title.trim().length === 0) {
+        throw new Error('Log title is required');
+      }
+
       const { error } = await supabase
         .from('system_logs')
         .insert({
           user_id: user.id,
-          log_type: logType,
-          title,
-          message,
+          log_type: logType.trim(),
+          title: title.trim(),
+          message: message?.trim() || '',
           metadata: metadata || {}
         });
 
@@ -64,6 +72,10 @@ export const useSystemLogs = () => {
 
   const markAsRead = async (logId: string) => {
     try {
+      if (!logId || logId.trim().length === 0) {
+        throw new Error('Log ID is required');
+      }
+
       const { error } = await supabase
         .from('system_logs')
         .update({ read_at: new Date().toISOString() })
