@@ -1,12 +1,23 @@
 
-import { Wifi, WifiOff, Home, Settings } from 'lucide-react';
+import { Wifi, WifiOff, Home, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HeaderProps {
   isConnected: boolean;
 }
 
 export const Header = ({ isConnected }: HeaderProps) => {
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
   return (
     <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -30,8 +41,23 @@ export const Header = ({ isConnected }: HeaderProps) => {
             </span>
           </div>
           
+          {user && (
+            <div className="flex items-center space-x-2 text-sm text-slate-300">
+              <span>{user.email}</span>
+            </div>
+          )}
+          
           <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white">
             <Settings className="h-4 w-4" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-slate-300 hover:text-white"
+            onClick={handleSignOut}
+          >
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </div>
