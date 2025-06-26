@@ -90,14 +90,17 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
       setStreamError(false);
       setConnectionAttempts(0);
       
-      // Test the health endpoint first
+      // Test the health endpoint first with proper CORS handling
       const response = await fetch(`http://${piIp}:8000/health`, {
         method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
         signal: AbortSignal.timeout(10000)
       });
       
       if (response.ok) {
-        console.log('CameraFeed: Health check successful');
+        const healthData = await response.json();
+        console.log('CameraFeed: Health check successful:', healthData);
         
         // Now try to reload the stream
         if (imgRef.current && streamUrl) {
@@ -171,6 +174,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
                 onError={handleImageError}
                 onLoad={handleImageLoad}
                 style={{ display: streamError ? 'none' : 'block' }}
+                crossOrigin="anonymous"
               />
               
               {/* Loading overlay */}
