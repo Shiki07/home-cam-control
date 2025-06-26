@@ -43,41 +43,41 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         """Handle HEAD requests for connection testing"""
         logger.info(f"HEAD request to {self.path}")
         
-        # Send CORS headers for all HEAD requests
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        
         if self.path == '/':
+            self.send_response(301)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Location', '/stream.mjpg')
-            self.send_header('Content-Type', 'text/html')
+            self.end_headers()
         elif self.path == '/health':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', '32')
+            self.end_headers()
         elif self.path == '/stream.mjpg':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
             self.send_header('Age', '0')
             self.send_header('Cache-Control', 'no-cache, private')
             self.send_header('Pragma', 'no-cache')
+            self.end_headers()
         else:
             self.send_response(404)
-            self.send_header('Content-Type', 'text/html')
-        
-        self.end_headers()
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
 
     def do_GET(self):
-        # Send CORS headers for all GET requests
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        logger.info(f"GET request to {self.path}")
         
         if self.path == '/':
             self.send_response(301)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Location', '/stream.mjpg')
             self.end_headers()
         elif self.path == '/stream.mjpg':
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Age', 0)
             self.send_header('Cache-Control', 'no-cache, private')
             self.send_header('Pragma', 'no-cache')
@@ -98,11 +98,14 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                 logger.warning('Removed streaming client %s: %s', self.client_address, str(e))
         elif self.path == '/health':
             # Health check endpoint
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"status": "ok", "camera": "active"}')
         else:
-            self.send_error(404)
+            self.send_response(404)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
 
     def log_message(self, format, *args):
