@@ -51,8 +51,8 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleImageError = (error: any) => {
-    console.error('CameraFeed: Stream error:', error);
+  const handleImageError = () => {
+    console.error('CameraFeed: MJPEG stream error');
     setStreamError(true);
     setIsLoading(false);
     
@@ -66,6 +66,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
         setStreamError(false);
         setIsLoading(true);
         
+        // Force reload the image with cache-busting
         if (imgRef.current && streamUrl) {
           imgRef.current.src = streamUrl + '?t=' + Date.now();
         }
@@ -74,7 +75,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
   };
 
   const handleImageLoad = () => {
-    console.log('CameraFeed: Stream loaded successfully');
+    console.log('CameraFeed: MJPEG stream loaded successfully');
     setStreamError(false);
     setIsLoading(false);
     setConnectionAttempts(0);
@@ -89,7 +90,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
       setStreamError(false);
       setConnectionAttempts(0);
       
-      // Test the health endpoint with proper error handling
+      // Test the health endpoint first
       const response = await fetch(`http://${piIp}:8000/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(10000)
@@ -97,15 +98,13 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
       
       if (response.ok) {
         console.log('CameraFeed: Health check successful');
-        const data = await response.json();
-        console.log('CameraFeed: Health response:', data);
         
-        // Force reload the image with cache-busting
+        // Now try to reload the stream
         if (imgRef.current && streamUrl) {
           imgRef.current.src = streamUrl + '?t=' + Date.now();
         }
       } else {
-        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Health check failed: ${response.status}`);
       }
     } catch (error) {
       console.error('CameraFeed: Connection test failed:', error);
