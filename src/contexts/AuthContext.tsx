@@ -120,7 +120,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      toast.success('Account created successfully! Please check your email to confirm your account.');
+      toast.success('Check your email to confirm your account!');
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
