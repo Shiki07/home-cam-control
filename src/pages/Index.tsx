@@ -5,12 +5,14 @@ import { EnvironmentalControls } from '@/components/EnvironmentalControls';
 import { SecurityPanel } from '@/components/SecurityPanel';
 import { DeviceControls } from '@/components/DeviceControls';
 import { NotificationPanel } from '@/components/NotificationPanel';
+import { PiDeviceManager } from '@/components/PiDeviceManager';
 import { Header } from '@/components/Header';
 import { StatusBar } from '@/components/StatusBar';
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(true);
   const [securityArmed, setSecurityArmed] = useState(false);
+  const [piIp, setPiIp] = useState(localStorage.getItem('pi-ip') || '');
 
   useEffect(() => {
     // Simulate connection status
@@ -21,16 +23,29 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    // Listen for Pi IP changes from localStorage
+    const handleStorageChange = () => {
+      setPiIp(localStorage.getItem('pi-ip') || '');
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
       <Header isConnected={isConnected} />
       <StatusBar securityArmed={securityArmed} />
       
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Top Row - Camera and Security */}
+        {/* Top Row - Device Manager */}
+        <PiDeviceManager />
+
+        {/* Second Row - Camera and Security */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <CameraFeed isConnected={isConnected} />
+            <CameraFeed isConnected={isConnected} piIp={piIp} />
           </div>
           <div>
             <SecurityPanel 
@@ -41,7 +56,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Middle Row - Environmental Controls */}
+        {/* Third Row - Environmental Controls */}
         <EnvironmentalControls isConnected={isConnected} />
 
         {/* Bottom Row - Device Controls and Notifications */}
