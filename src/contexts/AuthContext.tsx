@@ -105,14 +105,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      const redirectUrl = `${window.location.origin}/`;
-      
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: redirectUrl
-        }
       });
 
       if (error) {
@@ -120,7 +115,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      toast.success('Check your email to confirm your account!');
+      toast.success('Account created successfully!');
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
