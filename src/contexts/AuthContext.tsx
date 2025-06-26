@@ -38,21 +38,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Log security events
         if (event === 'SIGNED_IN' && session?.user) {
-          setTimeout(() => {
-            supabase.rpc('log_security_event', {
-              p_action: 'user_login',
-              p_success: true,
-              p_details: { method: 'email_password' }
-            }).catch(console.error);
+          setTimeout(async () => {
+            try {
+              await supabase.rpc('log_security_event', {
+                p_action: 'user_login',
+                p_success: true,
+                p_details: { method: 'email_password' }
+              });
+            } catch (error) {
+              console.error('Failed to log security event:', error);
+            }
           }, 0);
         }
         
         if (event === 'SIGNED_OUT') {
-          setTimeout(() => {
-            supabase.rpc('log_security_event', {
-              p_action: 'user_logout',
-              p_success: true
-            }).catch(console.error);
+          setTimeout(async () => {
+            try {
+              await supabase.rpc('log_security_event', {
+                p_action: 'user_logout',
+                p_success: true
+              });
+            } catch (error) {
+              console.error('Failed to log security event:', error);
+            }
           }, 0);
         }
       }
@@ -82,11 +90,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (error) {
       console.error('Sign up error:', error);
-      supabase.rpc('log_security_event', {
-        p_action: 'user_signup_failed',
-        p_success: false,
-        p_details: { error: error.message }
-      }).catch(console.error);
+      try {
+        await supabase.rpc('log_security_event', {
+          p_action: 'user_signup_failed',
+          p_success: false,
+          p_details: { error: error.message }
+        });
+      } catch (logError) {
+        console.error('Failed to log security event:', logError);
+      }
     }
 
     return { error };
@@ -100,11 +112,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (error) {
       console.error('Sign in error:', error);
-      supabase.rpc('log_security_event', {
-        p_action: 'user_login_failed',
-        p_success: false,
-        p_details: { error: error.message }
-      }).catch(console.error);
+      try {
+        await supabase.rpc('log_security_event', {
+          p_action: 'user_login_failed',
+          p_success: false,
+          p_details: { error: error.message }
+        });
+      } catch (logError) {
+        console.error('Failed to log security event:', logError);
+      }
     }
 
     return { error };
