@@ -76,9 +76,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
         if (mounted) {
           setUser(session?.user ?? null);
           setLoading(false);
+        }
+
+        // Handle email confirmation
+        if (event === 'SIGNED_IN' && session?.user) {
+          if (!session.user.email_confirmed_at) {
+            toast.info('Please check your email to confirm your account');
+          } else {
+            toast.success('Successfully signed in!');
+          }
+        }
+
+        // Handle token refresh
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('Token refreshed successfully');
         }
       }
     );
@@ -105,13 +121,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
+      // Use the current domain for redirect
       const redirectUrl = `${window.location.origin}/`;
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
         }
       });
 
@@ -120,7 +137,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      toast.success('Check your email to confirm your account!');
+      if (data.user && !data.user.email_confirmed_at) {
+        toast.success('Please check your email to confirm your account!');
+      } else {
+        toast.success('Account created successfully!');
+      }
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
@@ -148,11 +169,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (error) {
-        toast.error('Sign in failed: ' + error.message);
+        if (error.message.includes('Email not confirmed')) {
+          toast.error('Please confirm your email address before signing in');
+        } else {
+          toast.error('Sign in failed: ' + error.message);
+        }
         throw error;
       }
 
-      toast.success('Welcome back!');
+      // Success message will be handled by onAuthStateChange
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
