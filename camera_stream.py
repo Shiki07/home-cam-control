@@ -121,7 +121,8 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to reduce log spam but keep important info"""
-        if not self.path.endswith('/stream.mjpg') or 'Starting MJPEG stream' in str(args):
+        # Check if path exists before accessing it to avoid AttributeError
+        if not hasattr(self, 'path') or not self.path.endswith('/stream.mjpg') or 'Starting MJPEG stream' in str(args):
             logger.info("%s - - [%s] %s" %
                        (self.address_string(),
                         self.log_date_time_string(),
