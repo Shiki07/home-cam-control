@@ -1,81 +1,37 @@
 
-import { useState, useEffect } from 'react';
+import { useSystemLogs } from '@/hooks/useSystemLogs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bell, AlertTriangle, Info, CheckCircle, X } from 'lucide-react';
 
-interface Notification {
-  id: string;
-  type: 'warning' | 'info' | 'success' | 'error';
-  title: string;
-  message: string;
-  timestamp: Date;
-}
-
 export const NotificationPanel = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'warning',
-      title: 'Motion Detected',
-      message: 'Front door camera detected movement',
-      timestamp: new Date(Date.now() - 300000) // 5 minutes ago
-    },
-    {
-      id: '2',
-      type: 'info',
-      title: 'Temperature Alert',
-      message: 'Living room temperature is 25°C',
-      timestamp: new Date(Date.now() - 600000) // 10 minutes ago
-    },
-    {
-      id: '3',
-      type: 'success',
-      title: 'System Update',
-      message: 'Raspberry Pi firmware updated successfully',
-      timestamp: new Date(Date.now() - 1800000) // 30 minutes ago
-    }
-  ]);
+  const { logs, markAsRead } = useSystemLogs();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate new notifications
-      if (Math.random() > 0.8) {
-        const newNotification: Notification = {
-          id: Date.now().toString(),
-          type: Math.random() > 0.5 ? 'info' : 'warning',
-          title: Math.random() > 0.5 ? 'Sensor Update' : 'Device Status',
-          message: Math.random() > 0.5 ? 'Humidity sensor reading updated' : 'Coffee maker cycle completed',
-          timestamp: new Date()
-        };
-        setNotifications(prev => [newNotification, ...prev.slice(0, 4)]);
-      }
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const removeNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+  const removeNotification = async (id: string) => {
+    await markAsRead(id);
   };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
+      case 'warning': 
+      case 'security': return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
       case 'error': return <AlertTriangle className="h-4 w-4 text-red-400" />;
-      case 'success': return <CheckCircle className="h-4 w-4 text-green-400" />;
+      case 'device_control': return <CheckCircle className="h-4 w-4 text-green-400" />;
       default: return <Info className="h-4 w-4 text-blue-400" />;
     }
   };
 
   const getBorderColor = (type: string) => {
     switch (type) {
-      case 'warning': return 'border-l-yellow-400';
+      case 'warning':
+      case 'security': return 'border-l-yellow-400';
       case 'error': return 'border-l-red-400';
-      case 'success': return 'border-l-green-400';
+      case 'device_control': return 'border-l-green-400';
       default: return 'border-l-blue-400';
     }
   };
+
+  const unreadLogs = logs.filter(log => !log.read_at);
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -84,49 +40,46 @@ export const NotificationPanel = () => {
           <div className="flex items-center space-x-2">
             <Bell className="h-5 w-5 text-blue-400" />
             <span>Notifications</span>
+            {unreadLogs.length > 0 && (
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {unreadLogs.length}
+              </span>
+            )}
           </div>
-          {notifications.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setNotifications([])}
-              className="text-slate-400 hover:text-white"
-            >
-              Clear All
-            </Button>
-          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 max-h-96 overflow-y-auto">
-        {notifications.length === 0 ? (
+        {logs.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No new notifications</p>
+            <p>No notifications</p>
           </div>
         ) : (
-          notifications.map((notification) => (
+          logs.map((log) => (
             <div
-              key={notification.id}
-              className={`p-3 bg-slate-700/50 rounded-lg border-l-2 ${getBorderColor(notification.type)} relative group`}
+              key={log.id}
+              className={`p-3 rounded-lg border-l-2 ${getBorderColor(log.log_type)} relative group ${
+                log.read_at ? 'bg-slate-800/30' : 'bg-slate-700/50'
+              }`}
             >
               <button
-                onClick={() => removeNotification(notification.id)}
+                onClick={() => removeNotification(log.id)}
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="h-4 w-4 text-slate-400 hover:text-white" />
               </button>
               
               <div className="flex items-start space-x-3">
-                {getIcon(notification.type)}
+                {getIcon(log.log_type)}
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-white mb-1">
-                    {notification.title}
+                  <h4 className={`text-sm font-medium mb-1 ${log.read_at ? 'text-slate-400' : 'text-white'}`}>
+                    {log.title}
                   </h4>
-                  <p className="text-xs text-slate-300 mb-2">
-                    {notification.message}
+                  <p className={`text-xs mb-2 ${log.read_at ? 'text-slate-500' : 'text-slate-300'}`}>
+                    {log.message}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {notification.timestamp.toLocaleTimeString()}
+                    {new Date(log.created_at).toLocaleTimeString()}
                   </p>
                 </div>
               </div>

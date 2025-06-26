@@ -1,5 +1,6 @@
 
-import { useState } from 'react';
+import { useDeviceSettings } from '@/hooks/useDeviceSettings';
+import { useSystemLogs } from '@/hooks/useSystemLogs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -10,35 +11,41 @@ interface DeviceControlsProps {
   isConnected: boolean;
 }
 
-interface Device {
-  id: string;
-  name: string;
-  type: string;
-  isOn: boolean;
-  icon: any;
-  color: string;
-}
+const deviceConfigs = [
+  { name: 'Living Room Lights', type: 'light', icon: Lightbulb, color: 'text-yellow-400' },
+  { name: 'Smart TV', type: 'entertainment', icon: Tv, color: 'text-blue-400' },
+  { name: 'Coffee Maker', type: 'appliance', icon: Coffee, color: 'text-amber-400' },
+  { name: 'WiFi Router', type: 'network', icon: Wifi, color: 'text-green-400' },
+];
 
 export const DeviceControls = ({ isConnected }: DeviceControlsProps) => {
-  const [devices, setDevices] = useState<Device[]>([
-    { id: '1', name: 'Living Room Lights', type: 'light', isOn: true, icon: Lightbulb, color: 'text-yellow-400' },
-    { id: '2', name: 'Smart TV', type: 'entertainment', isOn: false, icon: Tv, color: 'text-blue-400' },
-    { id: '3', name: 'Coffee Maker', type: 'appliance', isOn: false, icon: Coffee, color: 'text-amber-400' },
-    { id: '4', name: 'WiFi Router', type: 'network', isOn: true, icon: Wifi, color: 'text-green-400' },
-  ]);
+  const { deviceSettings, updateDeviceSetting } = useDeviceSettings();
+  const { addLog } = useSystemLogs();
 
-  const toggleDevice = (deviceId: string) => {
-    setDevices(devices.map(device => {
-      if (device.id === deviceId) {
-        const newState = !device.isOn;
-        toast({
-          title: `${device.name} ${newState ? 'On' : 'Off'}`,
-          description: `Device has been turned ${newState ? 'on' : 'off'}`,
-        });
-        return { ...device, isOn: newState };
-      }
-      return device;
-    }));
+  const getDeviceState = (deviceName: string) => {
+    const setting = deviceSettings.find(d => d.device_name === deviceName);
+    return setting?.is_active ?? false;
+  };
+
+  const toggleDevice = async (deviceName: string) => {
+    const currentState = getDeviceState(deviceName);
+    const newState = !currentState;
+    
+    await updateDeviceSetting(deviceName, newState);
+    await addLog('device_control', `${deviceName} ${newState ? 'On' : 'Off'}`, `Device has been turned ${newState ? 'on' : 'off'}`);
+    
+    toast({
+      title: `${deviceName} ${newState ? 'On' : 'Off'}`,
+      description: `Device has been turned ${newState ? 'on' : 'off'}`,
+    });
+  };
+
+  const toggleAllDevices = async (state: boolean) => {
+    for (const device of deviceConfigs) {
+      await updateDeviceSetting(device.name, state);
+    }
+    await addLog('device_control', `All devices ${state ? 'on' : 'off'}`, `All devices have been turned ${state ? 'on' : 'off'}`);
+    toast({ title: `All devices turned ${state ? 'on' : 'off'}` });
   };
 
   return (
@@ -51,13 +58,15 @@ export const DeviceControls = ({ isConnected }: DeviceControlsProps) => {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {devices.map((device) => {
+          {deviceConfigs.map((device) => {
             const IconComponent = device.icon;
+            const isOn = getDeviceState(device.name);
+            
             return (
               <div
-                key={device.id}
+                key={device.name}
                 className={`p-4 rounded-lg border transition-all duration-200 ${
-                  device.isOn 
+                  isOn 
                     ? 'bg-slate-700/50 border-slate-600' 
                     : 'bg-slate-800/50 border-slate-700'
                 }`}
@@ -68,13 +77,13 @@ export const DeviceControls = ({ isConnected }: DeviceControlsProps) => {
                     <span className="text-white font-medium">{device.name}</span>
                   </div>
                   <Switch
-                    checked={device.isOn}
-                    onCheckedChange={() => toggleDevice(device.id)}
+                    checked={isOn}
+                    onCheckedChange={() => toggleDevice(device.name)}
                     disabled={!isConnected}
                   />
                 </div>
                 <div className="text-xs text-slate-400 capitalize">
-                  {device.type} • {device.isOn ? 'Active' : 'Inactive'}
+                  {device.type} • {isOn ? 'Active' : 'Inactive'}
                 </div>
               </div>
             );
@@ -88,10 +97,7 @@ export const DeviceControls = ({ isConnected }: DeviceControlsProps) => {
               size="sm" 
               className="flex-1"
               disabled={!isConnected}
-              onClick={() => {
-                setDevices(devices.map(device => ({ ...device, isOn: true })));
-                toast({ title: "All devices turned on" });
-              }}
+              onClick={() => toggleAllDevices(true)}
             >
               All On
             </Button>
@@ -100,10 +106,7 @@ export const DeviceControls = ({ isConnected }: DeviceControlsProps) => {
               size="sm" 
               className="flex-1"
               disabled={!isConnected}
-              onClick={() => {
-                setDevices(devices.map(device => ({ ...device, isOn: false })));
-                toast({ title: "All devices turned off" });
-              }}
+              onClick={() => toggleAllDevices(false)}
             >
               All Off
             </Button>
