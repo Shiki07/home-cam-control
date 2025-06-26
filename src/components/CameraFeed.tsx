@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Camera, Play, Pause, RotateCcw, Maximize2, AlertCircle } from 'lucide-react';
@@ -14,14 +13,22 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
   const [lastMotion, setLastMotion] = useState<Date | null>(null);
   const [streamError, setStreamError] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
+    console.log('CameraFeed: Pi IP changed:', piIp, 'Connected:', isConnected);
+    
     if (piIp && isConnected) {
       const url = `http://${piIp}:8000/stream.mjpg`;
+      console.log('CameraFeed: Setting stream URL to:', url);
       setStreamUrl(url);
       setStreamError(false);
+      setIsLoading(true);
     } else {
+      console.log('CameraFeed: Clearing stream URL');
       setStreamUrl(null);
+      setIsLoading(false);
     }
   }, [piIp, isConnected]);
 
@@ -36,12 +43,44 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleImageError = () => {
+  const handleImageError = (error: any) => {
+    console.error('CameraFeed: Stream error:', error);
     setStreamError(true);
+    setIsLoading(false);
   };
 
   const handleImageLoad = () => {
+    console.log('CameraFeed: Stream loaded successfully');
     setStreamError(false);
+    setIsLoading(false);
+  };
+
+  const testStreamConnection = async () => {
+    if (!streamUrl) return;
+    
+    try {
+      console.log('CameraFeed: Testing stream connection to:', streamUrl);
+      setIsLoading(true);
+      
+      // Test if the stream endpoint is reachable
+      const response = await fetch(streamUrl.replace('/stream.mjpg', ''), {
+        method: 'HEAD',
+        mode: 'no-cors',
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      console.log('CameraFeed: Stream test response received');
+      
+      // Force reload the image
+      if (imgRef.current) {
+        imgRef.current.src = streamUrl + '?t=' + Date.now();
+      }
+    } catch (error) {
+      console.error('CameraFeed: Stream test failed:', error);
+      setStreamError(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,6 +90,9 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
           <div className="flex items-center space-x-2">
             <Camera className="h-5 w-5 text-teal-400" />
             <span>Live Camera Feed</span>
+            {isLoading && (
+              <div className="text-sm text-yellow-400">Loading...</div>
+            )}
           </div>
           <div className="flex space-x-2">
             <Button
@@ -61,7 +103,12 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
             >
               {isRecording ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
-            <Button size="sm" variant="outline" disabled={!isConnected || !streamUrl}>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              disabled={!isConnected || !streamUrl}
+              onClick={testStreamConnection}
+            >
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button size="sm" variant="outline" disabled={!isConnected || !streamUrl}>
@@ -72,16 +119,28 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
       </CardHeader>
       <CardContent>
         <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden">
-          {streamUrl && isConnected && !streamError ? (
+          {streamUrl && isConnected ? (
             <>
               <img 
-                src={streamUrl} 
+                ref={imgRef}
+                src={streamUrl}
                 alt="Pi Camera Feed"
                 className="w-full h-full object-cover"
                 onError={handleImageError}
                 onLoad={handleImageLoad}
+                crossOrigin="anonymous"
               />
               
+              {/* Loading overlay */}
+              {isLoading && (
+                <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto mb-2"></div>
+                    <p className="text-sm">Connecting to camera...</p>
+                  </div>
+                </div>
+              )}
+
               {/* Motion detection indicator */}
               {lastMotion && (
                 <div className="absolute top-4 right-4 bg-red-500/90 px-3 py-1 rounded-full text-xs font-medium">
@@ -108,8 +167,19 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
                 <AlertCircle className="h-16 w-16 mx-auto mb-2" />
                 <p className="font-medium">Camera Stream Error</p>
                 <p className="text-sm text-slate-500 mt-1">
+                  Stream URL: {streamUrl}
+                </p>
+                <p className="text-sm text-slate-500">
                   Check Pi connection and camera setup
                 </p>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="mt-2"
+                  onClick={testStreamConnection}
+                >
+                  Retry Connection
+                </Button>
               </div>
             </div>
           ) : !streamUrl ? (
@@ -131,6 +201,13 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
             </div>
           )}
         </div>
+        
+        {/* Debug information */}
+        {streamUrl && (
+          <div className="mt-2 text-xs text-slate-500">
+            Stream: {streamUrl}
+          </div>
+        )}
         
         {lastMotion && (
           <div className="mt-3 text-sm text-slate-400">
