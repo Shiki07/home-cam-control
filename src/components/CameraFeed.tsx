@@ -81,29 +81,34 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
   };
 
   const testStreamConnection = async () => {
-    if (!streamUrl || !piIp) return;
+    if (!piIp) return;
     
     try {
-      console.log('CameraFeed: Testing stream connection to:', streamUrl);
+      console.log('CameraFeed: Testing connection to Pi health endpoint');
       setIsLoading(true);
       setStreamError(false);
       setConnectionAttempts(0);
       
-      // Test the main server endpoint first
-      const serverTest = await fetch(`http://${piIp}:8000`, {
-        method: 'HEAD',
-        mode: 'no-cors',
+      // Test the health endpoint with proper error handling
+      const response = await fetch(`http://${piIp}:8000/health`, {
+        method: 'GET',
         signal: AbortSignal.timeout(10000)
       });
       
-      console.log('CameraFeed: Server test response received');
-      
-      // Force reload the image with cache-busting
-      if (imgRef.current) {
-        imgRef.current.src = streamUrl + '?t=' + Date.now();
+      if (response.ok) {
+        console.log('CameraFeed: Health check successful');
+        const data = await response.json();
+        console.log('CameraFeed: Health response:', data);
+        
+        // Force reload the image with cache-busting
+        if (imgRef.current && streamUrl) {
+          imgRef.current.src = streamUrl + '?t=' + Date.now();
+        }
+      } else {
+        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.error('CameraFeed: Stream test failed:', error);
+      console.error('CameraFeed: Connection test failed:', error);
       setStreamError(true);
       setIsLoading(false);
     }
@@ -144,7 +149,7 @@ export const CameraFeed = ({ isConnected, piIp }: CameraFeedProps) => {
             <Button 
               size="sm" 
               variant="outline" 
-              disabled={!isConnected || !streamUrl || isLoading}
+              disabled={!isConnected || !piIp || isLoading}
               onClick={testStreamConnection}
             >
               <RotateCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

@@ -35,20 +35,38 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         """Handle CORS preflight requests"""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
 
+    def do_HEAD(self):
+        """Handle HEAD requests for connection testing"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        
+        if self.path == '/health':
+            self.send_header('Content-Type', 'application/json')
+        elif self.path == '/stream.mjpg':
+            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
+        else:
+            self.send_header('Content-Type', 'text/html')
+        
+        self.end_headers()
+
     def do_GET(self):
-        # Add CORS headers to all responses
-        self.send_cors_headers()
+        # Send CORS headers for all GET requests
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         
         if self.path == '/':
             self.send_response(301)
             self.send_header('Location', '/stream.mjpg')
             self.end_headers()
         elif self.path == '/stream.mjpg':
-            self.send_response(200)
             self.send_header('Age', 0)
             self.send_header('Cache-Control', 'no-cache, private')
             self.send_header('Pragma', 'no-cache')
@@ -68,20 +86,13 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             except Exception as e:
                 logger.warning('Removed streaming client %s: %s', self.client_address, str(e))
         elif self.path == '/health':
-            # Simple health check endpoint
-            self.send_response(200)
+            # Health check endpoint
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"status": "ok", "camera": "active"}')
         else:
             self.send_error(404)
             self.end_headers()
-    
-    def send_cors_headers(self):
-        """Add CORS headers to allow cross-origin requests"""
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def log_message(self, format, *args):
         """Override to reduce log spam"""
